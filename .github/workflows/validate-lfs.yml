@@ -1,0 +1,47 @@
+name: Validate Git LFS
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  validate-lfs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify Git LFS is installed
+        run: git lfs version
+
+      - name: List LFS-tracked patterns
+        run: git lfs track
+
+      - name: Check all LFS pointers are valid
+        run: git lfs fsck
+
+      - name: List LFS objects in repository
+        run: git lfs ls-files
+
+      - name: Confirm .pptx files are stored via LFS (not raw git)
+        run: |
+          for f in $(git lfs ls-files --name-only 2>/dev/null); do
+            echo "✅  LFS-tracked: $f"
+          done
+          # Fail if any .pptx file was accidentally committed outside LFS
+          raw=$(git ls-files templates/ | grep -E '\.(pptx?|potx?)$' || true)
+          if [ -n "$raw" ]; then
+            for f in $raw; do
+              size=$(git cat-file -s "HEAD:$f" 2>/dev/null || echo 0)
+              # An LFS pointer is tiny (~130 bytes). A real binary would be much larger.
+              if [ "$size" -gt 200 ]; then
+                echo "❌  $f is NOT stored via LFS (raw size $size bytes in git). Run: git lfs migrate import --include='$f'"
+                exit 1
+              fi
+            done
+          fi
+          echo "✅  All template files are correctly stored via Git LFS."
