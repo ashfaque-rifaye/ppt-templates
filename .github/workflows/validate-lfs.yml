@@ -3,8 +3,6 @@ name: Validate Git LFS
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: ["**"]
 
 jobs:
   validate-lfs:
