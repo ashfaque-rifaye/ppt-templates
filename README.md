@@ -1,46 +1,46 @@
 # ppt-templates
 
-A repo for PPT templates.
+A repo for PPT templates. Large binary files (`.ppt`, `.pptx`, images, etc.) are stored with **Git LFS** so they don't bloat the repository history.
 
-## How to Upload PPT Templates
+---
 
-This repository uses **Git Large File Storage (LFS)** to handle large binary files like `.ppt` and `.pptx` templates. Follow the steps below to push your templates successfully.
+## ⬆️ Upload a Template — no local setup required
 
-### Prerequisites
+You can add a new template entirely from your browser using a built-in GitHub Actions workflow. No need to install Git, Git LFS, or clone the repo locally.
 
-1. **Install Git LFS** on your machine:
-   - **macOS**: `brew install git-lfs`
-   - **Windows**: Download from [git-lfs.github.com](https://git-lfs.github.com)
-   - **Linux (Debian/Ubuntu)**: `sudo apt-get install git-lfs`
+### Steps
 
-2. **Enable Git LFS** for your Git installation (run once per machine):
-   ```bash
-   git lfs install
-   ```
+1. **Host your file somewhere accessible** with a direct download link — Google Drive, Dropbox, OneDrive, or any public URL works (see [Getting a direct link](#getting-a-direct-download-link) below).
 
-### Steps to Add a New Template
+2. **Go to the Actions tab** of this repository, select **"Upload PPT Template"** in the left sidebar, then click **"Run workflow"** (top-right of the workflow table).
 
-1. **Clone the repository** (if you haven't already):
-   ```bash
-   git clone https://github.com/ashfaque-rifaye/ppt-templates.git
-   cd ppt-templates
-   ```
+3. Fill in the form:
 
-2. **Copy your PPT/PPTX file** into the `templates/` folder:
-   ```bash
-   cp /path/to/your-template.pptx templates/
-   ```
+   | Field | Description |
+   |-------|-------------|
+   | **File URL** | Direct download URL of your file (see below) |
+   | **File name** | The filename to save, e.g. `q1-roadmap.pptx` |
+   | **Branch** | Branch to commit to (default: `main`) |
+   | **Commit message** | Optional — auto-generated if left blank |
 
-3. **Stage, commit, and push**:
-   ```bash
-   git add templates/your-template.pptx
-   git commit -m "Add your-template.pptx"
-   git push origin main
-   ```
+4. Click **"Run workflow"** — the runner downloads your file, stores it in `templates/` via Git LFS, and commits it automatically.
 
-   Git LFS will automatically handle the large binary file — no extra steps needed after the initial setup.
+That's it. You'll see the new file in `templates/` once the workflow finishes (usually under a minute).
 
-### File Types Tracked via Git LFS
+---
+
+### Getting a direct download link
+
+| Service | How to get a direct link |
+|---------|--------------------------|
+| **Google Drive** | Share the file → "Anyone with the link" → copy the file ID from the URL and use: `https://drive.google.com/uc?export=download&id=FILE_ID` |
+| **Dropbox** | Use the share link and change `?dl=0` → `?dl=1` at the end |
+| **OneDrive** | Click the **Download** button; copy the URL from your browser's address bar (it starts with `https://...download.aspx?...`) |
+| **Any other host** | Any URL that downloads the file directly when opened in a browser |
+
+---
+
+## File types tracked via Git LFS
 
 | Extension | Description |
 |-----------|-------------|
@@ -52,9 +52,35 @@ This repository uses **Git Large File Storage (LFS)** to handle large binary fil
 | `.png` / `.jpg` / `.jpeg` / `.gif` | Images |
 | `.zip`    | ZIP Archives |
 
-### Troubleshooting
+---
 
-- **"this exceeds GitHub's file size limit"** — Make sure you have run `git lfs install` before committing. If you already committed without LFS, use `git lfs migrate import --include="*.pptx"` to migrate.
-- **Push rejected** — Ensure you have write access to the repository. Contact the repository owner if needed.
-- **LFS quota exceeded** — GitHub Free accounts have 1 GB of LFS storage and 1 GB/month of bandwidth. Consider compressing templates or using GitHub's paid plans for more storage.
+## Uploading from the command line (optional)
+
+If you prefer the command line, you'll need Git LFS installed locally:
+
+```bash
+# 1. Install Git LFS (once per machine)
+brew install git-lfs        # macOS
+sudo apt-get install git-lfs # Ubuntu/Debian
+
+# 2. Enable it
+git lfs install
+
+# 3. Clone, add your file, and push  (replace <YOUR_REPO_URL> with this repo's clone URL)
+git clone <YOUR_REPO_URL>
+cd ppt-templates
+cp /path/to/your-template.pptx templates/
+git add templates/your-template.pptx
+git commit -m "Add your-template.pptx"
+git push origin main
+```
+
+---
+
+## Troubleshooting
+
+- **Workflow fails with "Downloaded file is empty"** — Your URL isn't a direct download link. See [Getting a direct link](#getting-a-direct-download-link) above.
+- **"this exceeds GitHub's file size limit"** (command-line) — Run `git lfs install` before committing, then use `git lfs migrate import --include="*.pptx"` if you've already committed without LFS.
+- **Push rejected** — Ensure you have write access to the repository.
+- **LFS quota exceeded** — GitHub Free accounts have 1 GB of LFS storage and 1 GB/month of bandwidth. Consider compressing templates or upgrading to a paid plan.
 

@@ -1,0 +1,159 @@
+name: Upload PPT Template
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Use this workflow to add a template without any local Git / Git LFS setup.
+#
+# How to trigger it:
+#   1. Go to the Actions tab on GitHub.
+#   2. Click "Upload PPT Template" in the left sidebar.
+#   3. Click the "Run workflow" button (top right of the workflow list).
+#   4. Fill in the form fields and click "Run workflow".
+#
+# The runner will download your file, store it in the templates/ folder via
+# Git LFS, and commit it directly to the target branch — no local tooling needed.
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: >
+          Direct download URL of your PPT/PPTX file.
+          • Google Drive  → https://drive.google.com/uc?export=download&id=FILE_ID
+          • Dropbox       → change ?dl=0 to ?dl=1 at the end of the share link
+          • OneDrive      → use the URL from the "Download" button (not the share page)
+          • Any direct link to a .ppt / .pptx / .pdf file also works.
+        required: true
+        type: string
+
+      file_name:
+        description: >
+          File name to save under templates/ (must include extension,
+          e.g. "q1-2025-roadmap.pptx")
+        required: true
+        type: string
+
+      branch:
+        description: Branch to commit to (default: main)
+        required: false
+        default: main
+        type: string
+
+      commit_message:
+        description: Commit message (leave blank to auto-generate)
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push the new file back to the repo
+
+    steps:
+      # ── 1. Checkout the target branch with LFS support ─────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          lfs: true
+          # Use a PAT stored as UPLOAD_TOKEN if set, otherwise fall back to the
+          # built-in GITHUB_TOKEN (works for same-repo pushes).
+          token: ${{ secrets.UPLOAD_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # ── 2. Validate the filename ────────────────────────────────────────────
+      - name: Validate inputs
+        env:
+          INPUT_FILE_NAME: ${{ inputs.file_name }}
+        run: |
+          FILE_NAME="$INPUT_FILE_NAME"
+
+          # Must not be empty or contain path separators / shell metacharacters
+          if [[ -z "$FILE_NAME" ]]; then
+            echo "::error::file_name must not be empty."
+            exit 1
+          fi
+          if [[ "$FILE_NAME" == *"/"* || "$FILE_NAME" == *"\\"* ]]; then
+            echo "::error::file_name must be a plain filename, not a path."
+            exit 1
+          fi
+          if [[ ! "$FILE_NAME" =~ \. ]]; then
+            echo "::error::file_name must include a file extension (e.g. .pptx)."
+            exit 1
+          fi
+
+          echo "FILE_NAME=$FILE_NAME" >> "$GITHUB_ENV"
+          echo "DEST=templates/$FILE_NAME" >> "$GITHUB_ENV"
+
+      # ── 3. Download the file ────────────────────────────────────────────────
+      - name: Download file
+        env:
+          INPUT_FILE_URL: ${{ inputs.file_url }}
+        run: |
+          URL="$INPUT_FILE_URL"
+
+          # Handle Google Drive "large-file warning" page:
+          # When the file is large, Drive redirects to a confirmation page.
+          # We follow the redirect and extract the real download token.
+          if [[ "$URL" == *"drive.google.com"* ]]; then
+            echo "Detected Google Drive URL — using cookie-based download..."
+            # First request: capture the warning-page confirm token
+            CONFIRM=$(curl -sc /tmp/gdrive_cookies "$URL" \
+              | grep -o 'confirm=[^&"]*' | head -1 | cut -d= -f2 || true)
+            if [[ -n "$CONFIRM" ]]; then
+              URL="${URL}&confirm=${CONFIRM}"
+            fi
+            curl -Lb /tmp/gdrive_cookies "$URL" -o "$DEST"
+          else
+            curl -fL "$URL" -o "$DEST"
+          fi
+
+          # Sanity-check that we actually got a non-empty file
+          SIZE=$(stat -c%s "$DEST")
+          echo "Downloaded: $DEST (${SIZE} bytes)"
+          if [[ "$SIZE" -eq 0 ]]; then
+            echo "::error::Downloaded file is empty. Check that the URL is a direct download link."
+            exit 1
+          fi
+
+      # ── 4. Confirm Git LFS will track this file ─────────────────────────────
+      - name: Verify LFS tracking
+        run: |
+          # Check whether the file extension is tracked by .gitattributes
+          EXT="${FILE_NAME##*.}"
+          if git check-attr filter -- "$DEST" | grep -q "filter: lfs"; then
+            echo "✅  .${EXT} is tracked via Git LFS"
+          else
+            echo "⚠️  .${EXT} is not listed in .gitattributes — adding it now..."
+            git lfs track "*.${EXT}"
+            git add .gitattributes
+          fi
+
+      # ── 5. Commit and push ──────────────────────────────────────────────────
+      - name: Commit and push
+        env:
+          INPUT_COMMIT_MSG: ${{ inputs.commit_message }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "$DEST"
+
+          # Nothing to commit means the exact same file is already present
+          if git diff --cached --quiet; then
+            echo "ℹ️  $DEST is already up-to-date in the repository. Nothing to commit."
+            exit 0
+          fi
+
+          MSG="$INPUT_COMMIT_MSG"
+          if [[ -z "$MSG" ]]; then
+            MSG="Add $FILE_NAME via upload workflow"
+          fi
+
+          git commit -m "$MSG"
+
+          # Push — LFS objects are uploaded automatically
+          git push origin "$INPUT_BRANCH"
+          echo "✅  $FILE_NAME has been uploaded to templates/ on branch '$INPUT_BRANCH'."
